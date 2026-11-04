@@ -6,7 +6,7 @@ import maya.standalone
 maya.standalone.initialize(name="python")
 import maya.cmds as cmds
 
-SCENE = r"C:\Users\haoguoli\Desktop\shengzi\shengzi_Rig_FIXED.ma"
+SCENE = sys.argv[1] if len(sys.argv) > 1 else r"C:\Users\haoguoli\Desktop\shengzi\shengzi_Rig_FIXED_v2.ma"
 cmds.file(SCENE, o=True, f=True, prompt=False)
 
 geo = "ROPE_GEO"
@@ -49,6 +49,28 @@ tests["fk"] = transform_test("FK_04_CTRL", rot_attr, 20.0, 10)
 tests["knotPivot"] = transform_test("KNOT_PIVOT_02_CTRL", cross_t, major*.018, 3)
 tests["lassoOpen"] = transform_test("LASSO_GLOBAL_CTRL", "loopOpen", major*.022, 14)
 tests["lassoDrop"] = transform_test("LASSO_GLOBAL_CTRL", "sag", -major*.018, 16)
+tests["knotGlobal"] = transform_test("KNOT_GLOBAL_CTRL", cross_t, major*.022, 3)
+tests["lassoGlobal"] = transform_test("LASSO_GLOBAL_CTRL", cross_t, major*.022, 14)
+
+def bbox_center():
+    b = cmds.exactWorldBoundingBox(geo)
+    return [(b[i] + b[i+3]) * .5 for i in range(3)]
+
+move_input = 5.0
+c0 = bbox_center()
+cmds.setAttr("GLOBAL_CTRL.tx", move_input)
+refresh()
+c1 = bbox_center()
+tests["globalTranslate"] = c1[0] - c0[0]
+cmds.setAttr("GLOBAL_CTRL.tx", 0)
+refresh()
+c0 = bbox_center()
+cmds.setAttr("ROPE_CTRL.tx", move_input)
+refresh()
+c1 = bbox_center()
+tests["ropeTranslate"] = c1[0] - c0[0]
+cmds.setAttr("ROPE_CTRL.tx", 0)
+refresh()
 
 curve_info = "ROPE_ARCLENGTH_CIF"
 arc0 = cmds.getAttr(curve_info + ".arcLength")
@@ -125,8 +147,9 @@ expected = [[[.5,.5,0],[1,0,0],[0,1,0],[0,0,1]][i] for i in range(4)]
 presets_ok = len(follow_values)==4 and all(max(abs(follow_values[i][k]-expected[i][k]) for k in range(3)) < 1e-5 for i in range(4))
 manual_ok = len(manual_values)==3 and max(abs(manual_values[i]-[.2,.7,.1][i]) for i in range(3)) < 1e-5
 report["passed"] = (
-    all(tests[k] > 0.02 for k in ("mainIK","secondaryIK","sculpt","fk","knotPivot","lassoOpen","lassoDrop"))
+    all(tests[k] > 0.02 for k in ("mainIK","secondaryIK","sculpt","fk","knotPivot","lassoOpen","lassoDrop","knotGlobal","lassoGlobal"))
     and tests["stretchRatio"] > 1.03 and tests["twistMatrixDelta"] > .01
+    and abs(tests["globalTranslate"]-move_input) < .001 and abs(tests["ropeTranslate"]-move_input) < .001
     and presets_ok and manual_ok and len(infs)==41 and report["returnedBBoxDelta"] < .001 and finite
 )
 print("FIXED_VALIDATION_JSON=" + json.dumps(report, ensure_ascii=False))

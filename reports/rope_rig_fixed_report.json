@@ -1,5 +1,5 @@
 {
-  "output": "C:\\Users\\haoguoli\\Desktop\\shengzi\\shengzi_Rig_FIXED.ma",
+  "output": "C:\\Users\\haoguoli\\Desktop\\shengzi\\shengzi_Rig_FIXED_v2.ma",
   "axis": "Z",
   "meshLength": 106.74112319946289,
   "radius": 0.2134822463989258,
@@ -13,7 +13,13 @@
     "mainIK": 5.443797283172606,
     "secondaryIK": 2.988751449584961,
     "sculpt": 1.4943757247924805,
-    "stretchRatio": 1.0924993542021828
+    "stretchRatio": 1.0924993542021828,
+    "globalTranslateInput": 5.0,
+    "globalMeshTranslate": 5.0,
+    "ropeTranslateInput": 5.0,
+    "ropeMeshTranslate": 5.0,
+    "knotGlobal": 2.668528079986572,
+    "lassoGlobal": 1.8679696559906005
   },
   "counts": {
     "bindJoints": 41,

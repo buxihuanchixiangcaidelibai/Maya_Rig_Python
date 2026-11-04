@@ -13,8 +13,8 @@ import maya.api.OpenMayaAnim as oma
 
 
 SOURCE = r"C:\Users\haoguoli\Desktop\shengzi\shengzi_Rig.ma"
-OUTPUT = r"C:\Users\haoguoli\Desktop\shengzi\shengzi_Rig_FIXED.ma"
-REPORT = r"C:\Users\haoguoli\CodeBuddy\Claw\butterfly_knife\rope_rig_fixed_report.json"
+OUTPUT = r"C:\Users\haoguoli\Desktop\shengzi\shengzi_Rig_FIXED_v2.ma"
+REPORT = r"C:\Users\haoguoli\CodeBuddy\Claw\butterfly_knife\rope_rig_fixed_v2_report.json"
 
 
 def color(ctrl, index):
@@ -198,7 +198,10 @@ def build():
     rope_ctrl, rope_zero, _ = circle_ctrl("ROPE_CTRL", center, ctrl_r*1.55, normal, 22, global_ctrl)
     controls_grp = cmds.group(em=True, n="CONTROLS_GRP", p=rope_ctrl)
     deform_grp = cmds.group(em=True, n="DEFORM_SYSTEM_GRP", p=rope_ctrl)
-    geo_grp = cmds.group(em=True, n="GEOMETRY_GRP", p=rope_ctrl)
+    # Geometry stays in world space. The skin receives GLOBAL/ROPE motion from the
+    # bind joints only, preventing the classic double-transform problem.
+    geo_grp = cmds.group(em=True, n="GEOMETRY_GRP", p=root)
+    cmds.setAttr(geo_grp + ".inheritsTransform", 0)
     modules_grp = cmds.group(em=True, n="MODULES_GRP", p=rope_ctrl)
     world_grp = cmds.group(em=True, n="WORLD_SPACES_GRP", p=root)
     cmds.setAttr(world_grp + ".inheritsTransform", 0)
@@ -316,8 +319,11 @@ def build():
     for ki,idx in enumerate((2,3,4)):
         kc,kz,_=circle_ctrl("KNOT_PIVOT_%02d_CTRL"%(ki+1),centerline[idx],ctrl_r*(.58-ki*.06),normal,21,knot_root)
         knot_controls.append(kc)
-        offset=cmds.group(em=True,n="KNOT_PIVOT_%02d_OFFSET"%(ki+1),p=sculpt_controls[idx])
+        root_offset=cmds.group(em=True,n="KNOT_ROOT_%02d_OFFSET"%(ki+1),p=sculpt_controls[idx])
+        cmds.xform(root_offset,ws=True,t=centerline[idx])
+        offset=cmds.group(em=True,n="KNOT_PIVOT_%02d_OFFSET"%(ki+1),p=root_offset)
         cmds.xform(offset,ws=True,t=centerline[idx]); cmds.parent(driver_joints[idx],offset)
+        for a in ("translate","rotate","scale"): connect(knot_root+"."+a,root_offset+"."+a)
         for a in ("translate","rotate","scale"): connect(kc+"."+a,offset+"."+a)
 
     # Lasso deformation module (size/open/drop controls).
@@ -331,13 +337,30 @@ def build():
     for label,idx in (("SIZE",12),("OPEN",14),("DROP",16)):
         lc,lz,_=diamond_ctrl("LASSO_%s_CTRL"%label,centerline[idx],ctrl_r*.48,9,lasso_root)
         lasso_controls.append(lc)
-        offset=cmds.group(em=True,n="LASSO_%s_OFFSET"%label,p=sculpt_controls[idx])
+        root_offset=cmds.group(em=True,n="LASSO_ROOT_%s_OFFSET"%label,p=sculpt_controls[idx])
+        cmds.xform(root_offset,ws=True,t=centerline[idx])
+        offset=cmds.group(em=True,n="LASSO_%s_OFFSET"%label,p=root_offset)
         cmds.xform(offset,ws=True,t=centerline[idx]); cmds.parent(driver_joints[idx],offset)
+        for a in ("translate","rotate","scale"): connect(lasso_root+"."+a,root_offset+"."+a)
         for a in ("translate","rotate","scale"): connect(lc+"."+a,offset+"."+a)
     for a in "XYZ": connect(lasso_root+".loopSize",lasso_controls[0]+".scale"+a)
     cross=[i for i in range(3) if i!=axis]
     connect(lasso_root+".loopOpen",lasso_controls[1]+".t"+"xyz"[cross[0]])
     connect(lasso_root+".sag",lasso_controls[2]+".t"+"xyz"[cross[1]])
+
+    # The module offset hierarchy is now final. Rebind the driver curve so parent
+    # motion from the Knot/Lasso Global controls is not cancelled by bind matrices.
+    cmds.delete(curve_skin)
+    curve_skin=cmds.skinCluster(driver_joints,driver_curve,tsb=True,bm=0,sm=0,nw=1,mi=3,omi=True,n="ROPE_CURVE_SKIN")[0]
+    for i in range(17):
+        weights=[]
+        if i>0: weights.append((driver_joints[i-1],.15))
+        weights.append((driver_joints[i],.70 if 0<i<16 else .85))
+        if i<16: weights.append((driver_joints[i+1],.15))
+        total=sum(v for _,v in weights)
+        cmds.skinPercent(curve_skin,driver_curve+".cv[%d]"%i,
+                         tv=[(j,v/total) for j,v in weights],normalize=True)
+    cmds.refresh(force=True)
 
     # Visibility controls.
     connect(global_ctrl+".showGeometry",geo_grp+".visibility")
@@ -352,7 +375,7 @@ def build():
     cmds.sets(all_ctrls,n="ROPE_ALL_CONTROLS_SET")
     cmds.sets(bind_joints,n="ROPE_BIND_JOINTS_SET")
     info=cmds.createNode("network",n="ROPE_RIG_INFO")
-    add_string(info,"version","2.0-fixed")
+    add_string(info,"version","2.1-feedback-fix")
     add_string(info,"sourceScene",SOURCE); add_string(info,"referenceVideo",r"C:\Users\haoguoli\Desktop\Video Project 1.mp4")
     add_string(info,"controlLegend","Red Main IK; Blue Secondary IK; Yellow Sculpt; Green FK; Orange Knot; Pink Lasso")
     add_string(info,"deformation","Curve skin drivers (no clusters), 41-joint spline IK, explicit two-joint mesh weights, stretch and volume preservation")
@@ -383,14 +406,34 @@ def build():
     before=cvp(7); cmds.setAttr(sec_controls[7]+"."+cross_attr,-major*.04); cmds.refresh(f=True); sec_delta=d(before,cvp(7)); cmds.setAttr(sec_controls[7]+"."+cross_attr,0); cmds.refresh(f=True)
     before=cvp(8); cmds.setAttr(sculpt_controls[8]+"."+cross_attr,major*.02); cmds.refresh(f=True); sculpt_delta=d(before,cvp(8)); cmds.setAttr(sculpt_controls[8]+"."+cross_attr,0); cmds.refresh(f=True)
     end_ctrl=main_controls[16]; tattr="t"+"xyz"[axis]; base_arc=cmds.getAttr(ci+".arcLength"); cmds.setAttr(end_ctrl+"."+tattr,major*.10); cmds.refresh(f=True); stretch_ratio=cmds.getAttr(ci+".arcLength")/base_arc; cmds.setAttr(end_ctrl+"."+tattr,0); cmds.refresh(f=True)
+
+    def bbox_center():
+        b=cmds.exactWorldBoundingBox(geo)
+        return [(b[i]+b[i+3])*.5 for i in range(3)]
+    global_test_value=5.0
+    c0=bbox_center(); cmds.setAttr(global_ctrl+".tx",global_test_value); cmds.refresh(f=True); c1=bbox_center()
+    global_move=c1[0]-c0[0]; cmds.setAttr(global_ctrl+".tx",0); cmds.refresh(f=True)
+    c0=bbox_center(); cmds.setAttr(rope_ctrl+".tx",global_test_value); cmds.refresh(f=True); c1=bbox_center()
+    rope_move=c1[0]-c0[0]; cmds.setAttr(rope_ctrl+".tx",0); cmds.refresh(f=True)
+
+    before=cvp(3); cmds.setAttr(knot_root+"."+cross_attr,major*.025); cmds.refresh(f=True); knot_global_delta=d(before,cvp(3)); cmds.setAttr(knot_root+"."+cross_attr,0); cmds.refresh(f=True)
+    before=cvp(14); cmds.setAttr(lasso_root+"."+cross_attr,major*.025); cmds.refresh(f=True); lasso_global_delta=d(before,cvp(14)); cmds.setAttr(lasso_root+"."+cross_attr,0); cmds.refresh(f=True)
     final_bbox=cmds.exactWorldBoundingBox(geo)
     report={"output":OUTPUT,"axis":"XYZ"[axis],"meshLength":major,"radius":radius,
             "jointCenterlineError":{"mean":sum(align)/len(align),"max":max(align)},
             "bindPoseBBoxDelta":max(abs(post_bbox[i]-pre_bbox[i]) for i in range(6)),
             "returnedBBoxDelta":max(abs(final_bbox[i]-post_bbox[i]) for i in range(6)),
-            "tests":{"mainIK":main_delta,"secondaryIK":sec_delta,"sculpt":sculpt_delta,"stretchRatio":stretch_ratio},
+            "tests":{"mainIK":main_delta,"secondaryIK":sec_delta,"sculpt":sculpt_delta,"stretchRatio":stretch_ratio,
+                     "globalTranslateInput":global_test_value,"globalMeshTranslate":global_move,
+                     "ropeTranslateInput":global_test_value,"ropeMeshTranslate":rope_move,
+                     "knotGlobal":knot_global_delta,"lassoGlobal":lasso_global_delta},
             "counts":{"bindJoints":len(bind_joints),"mainIK":len(main_controls),"secondaryIK":len(sec_controls),"sculpt":len(sculpt_controls),"fk":len(fk_controls)}}
-    report["passed"]=max(align)<radius*.35 and report["bindPoseBBoxDelta"]<radius*.05 and main_delta>radius*.1 and sec_delta>radius*.1 and sculpt_delta>radius*.05 and stretch_ratio>1.001 and report["returnedBBoxDelta"]<radius*.05
+    report["passed"]=(max(align)<radius*.35 and report["bindPoseBBoxDelta"]<radius*.05
+                      and main_delta>radius*.1 and sec_delta>radius*.1 and sculpt_delta>radius*.05
+                      and stretch_ratio>1.001 and abs(global_move-global_test_value)<.001
+                      and abs(rope_move-global_test_value)<.001
+                      and knot_global_delta>radius*.1 and lasso_global_delta>radius*.1
+                      and report["returnedBBoxDelta"]<radius*.05)
 
     cmds.select(global_ctrl,r=True)
     cmds.file(rename=OUTPUT); cmds.file(save=True,type="mayaAscii",force=True)
