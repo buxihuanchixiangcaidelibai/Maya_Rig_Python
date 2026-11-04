@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.log
+*.tmp
+*.autosave
+workspace.mel
+autosave/
+incrementalSave/

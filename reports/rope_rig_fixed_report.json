@@ -1,0 +1,26 @@
+{
+  "output": "C:\\Users\\haoguoli\\Desktop\\shengzi\\shengzi_Rig_FIXED.ma",
+  "axis": "Z",
+  "meshLength": 106.74112319946289,
+  "radius": 0.2134822463989258,
+  "jointCenterlineError": {
+    "mean": 0.0006790778794021186,
+    "max": 0.005950148941518497
+  },
+  "bindPoseBBoxDelta": 0.0,
+  "returnedBBoxDelta": 0.0,
+  "tests": {
+    "mainIK": 5.443797283172606,
+    "secondaryIK": 2.988751449584961,
+    "sculpt": 1.4943757247924805,
+    "stretchRatio": 1.0924993542021828
+  },
+  "counts": {
+    "bindJoints": 41,
+    "mainIK": 9,
+    "secondaryIK": 8,
+    "sculpt": 17,
+    "fk": 9
+  },
+  "passed": true
+}
